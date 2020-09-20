@@ -1,0 +1,92 @@
+---
+title: "Final Report"
+author: "Team 6 purple"
+date: "9/17/2020"
+output: html_notebook
+---
+
+# PART II -- 
+
+## Summary
+
+## Introduction
+
+Job training, in a long term, is considered an efficient way to leverage the income level of disadvantaged workers. In 1970s, several experiments was conducted to reveal the real impact of job training on participants' wages, including the National Supported Work (NSW) Demonstration[1]. In the experiment, eligible workers were assigned to receive job training and their incomes in 1973, 1974 and 1977 were recorded according.
+
+The primary goal of this analysis is to access whether receiving a job training has a significant impact on the possibility of getting a paid job. Other considerations includes whether this effect differ by demographic groups in terms of age, education and racial identity. We're also interested to explore other association with positive wages.
+
+**Data Processing**
+
+The data used in this analysis was accessed via the NSW Demonstration experiment. The original data includes 614 non-empty observations. Since we only cares about the possibility of getting a paid job, we generated a new binary categorical variable 'inc78' where 0 represents zero wages and 1 for non-zero wages, and used it as our response variable. The cleaned dataset included 10 distinctive predictors -- 5 categorical ones and 4 numeric.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(out.width = '50%')
+knitr::opts_chunk$set(fig.align="center")
+```
+
+```{r library, message=FALSE}
+library(tidyverse) # Data wrangling
+library(ggplot2) # Plotting
+
+# For logistic regression
+library(arm)
+library(car)
+library(pROC)
+library(e1071)
+library(caret)
+
+## table
+library(knitr)
+library(kableExtra)
+```
+
+```{r import data, echo=FALSE}
+income = read.table("lalondedata.txt", header = T, sep = ",", dec = ".")
+```
+
+```{r data processing, echo=FALSE}
+# Change the variable to factor levels
+income = income %>% mutate(
+        inc78 = case_when(
+                re78 == 0 ~ 0,
+                re78 > 0 ~ 1, )
+        )
+
+income$inc78_factor <- as.factor(income$inc78)
+income$treat <- as.factor(income$treat)
+income$black <- as.factor(income$black)
+income$hispan <- as.factor(income$hispan)
+income$married <- as.factor(income$married)
+income$nodegree <- as.factor(income$nodegree)
+```
+
+## Exploratory Data Analysis
+
+EDA is a process of uncovering useful information and pattern of the data set through statistical summary, table and visulization.
+
+**Reponse_Vairble**
+
+In this analysis, a table of the response variables 'inc78_fator' is conducted to examine the sufficiency of observations for both level, and get a general understanding of the baseline probability for model fitting and further analysis. According to the table, we have 471 workers with positive wage and 143 unemployed. The average possibility of getting a non-zero wage job in 1978 is about 76% in the sample population.
+
+```{r response varible, echo=FALSE}
+table(income$inc78_factor)
+```
+
+**Treatment vs Non-zero Wage**
+```{r}
+apply(table(income[,c("inc78_factor","treat")])/sum(table(income[,c("inc78_factor","treat")])), 2, function(x) x/sum(x))
+```
+
+
+
+## Model Selection 
+
+## Model Accessment
+
+## Model Validation
+
+## Conclusion and Limitation
+
+## Appendix and Reference
+[1] Lalonde, R. J. (1986), Evaluating the econometric evaluations of training programs with experimental data, The American Economic Review, 76, 604 - 620

@@ -125,7 +125,7 @@ ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~
 
 The model selection is based on two methods: AIC Stepwise Selection and anova chiq test. 
 
-For this analysis, all potential predictor is fitted into a full model. Using stepwise selection, a combination of forward and backward selection, with a null model containing only treatment as predictor, variables are either added or removed in several stages in the process to meet the maximum likelihood estimation. At the end of process, two significant varibles -- age and black -- are selected. 
+For this analysis, all potential predictor is fitted into a full model. Using stepwise selection, a combination of forward and backward selection, with a null model containing only treatment as predictor, variables are either added or removed in several stages in the process to meet the maximum likelihood estimation. At the end of process, two significant variables -- age and black -- are selected. 
 
 To explore the real effect of demographic groups on the association between non-zero wage and job training, interaction terms between treatment and other variables were added to the full model one by one and their efficiency is tested by an anova chi-q test. Given a p-value of 0.038 when we use anova to compare model with interactions between age and treatment vs without, we reject the hypothesis and confirmed the interaction term efficient for predicting the possibility of getting non-zero wage. Even though the interaction effect between age and high school degree seems significant in previous EDA, we failed to reject the null hypothesis and found the interaction term negligible. 
 

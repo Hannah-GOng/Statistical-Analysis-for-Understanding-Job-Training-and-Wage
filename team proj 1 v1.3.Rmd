@@ -27,8 +27,9 @@ library(caret)
 ### ---Data wrangling
 ```{r import data}
 # CHANGE DIRECTORY
-income <- read.table("C:/Users/renha/Desktop/IDS702/lalondedata.txt",header = TRUE,sep = ",",stringsAsFactors = FALSE,row.names = 'X')
-#income = read.table(file = "D:/MIDS/fall 2020/702 modeling/dataset/lalondedata.txt", header = T, sep = ",", dec = ".")
+#income <- read.table("C:/Users/renha/Desktop/IDS702/lalondedata.txt",header = TRUE,sep = ",",stringsAsFactors = FALSE,row.names = 'X')
+income = read.table(file = "D:/MIDS/fall 2020/702 modeling/dataset/lalondedata.txt",
+                    header = T, sep = ",", dec = ".")
 ```
 
 ```{r}
@@ -36,19 +37,64 @@ income <- read.table("C:/Users/renha/Desktop/IDS702/lalondedata.txt",header = TR
 income = income %>% mutate(
         inc78 = case_when(
                 re78 == 0 ~ 0,
-                re78 > 0 ~ 1, )
+                re78 > 0 ~ 1 )
         )
 
-income$inc78_factor <- as.factor(income$inc78)
+# Change to factors, apply to part I and part II
 income$treat <- as.factor(income$treat)
 income$black <- as.factor(income$black)
 income$hispan <- as.factor(income$hispan)
 income$married <- as.factor(income$married)
 income$nodegree <- as.factor(income$nodegree)
-mean(income$inc78)
+
+# Response variable for part I, change in income - continuous
+income$change <- income$re78 - income$re74
+
+# Response variable for part II, inc78_factor - binary
+income$inc78_factor <- as.factor(income$inc78)
 ```
 
-### ---EDA
+## Part I
+
+### EDA
+
+#### Response variable - change in income
+```{r}
+hist(income$change)
+```
+
+#### Response variable vs continous variables
+```{r}
+# continuous
+pairs(income[,-c(1,4,5,6,7,11)])# Multicollinearity check?
+# Could add a line y=0
+plot(income$age,income$edu)# ?? examine interaction?
+plot(income$age,income$change)
+plot(income$educ,income$change)
+```
+
+#### Response variable vs categorical variables, interactions:
+
+```{r}
+ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() 
+
+ggplot(data= income, aes(x=as.factor(educ), y=change)) + geom_boxplot() + facet_wrap(~treat)
+ggplot(data= income, aes(x=black, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction
+ggplot(data= income, aes(x=hispan, y=change)) + geom_boxplot() + facet_wrap(~treat) # individually
+ggplot(data= income, aes(x=married, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction
+#ggplot(data= income, aes(x=nodegree, y=change)) + geom_boxplot() + facet_wrap(~treat) 
+ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() + facet_wrap(~nodegree) # individually
+```
+
+### Model 
+
+
+
+
+
+## Part II
+
+### EDA
 
 #### Response variable vs categorical variables
 
@@ -56,7 +102,7 @@ mean(income$inc78)
 apply(table(income[,c("inc78_factor","treat")])/sum(table(income[,c("inc78_factor","treat")])),
       2,function(x) x/sum(x))
 apply(table(income[,c("inc78_factor","black")])/sum(table(income[,c("inc78_factor","black")])),
-      2,function(x) x/sum(x)) # significant
+      2,function(x) x/sum(x))
 apply(table(income[,c("inc78_factor","hispan")])/sum(table(income[,c("inc78_factor","hispan")])),
       2,function(x) x/sum(x))
 apply(table(income[,c("inc78_factor","married")])/sum(table(income[,c("inc78_factor","married")])),
@@ -67,10 +113,10 @@ apply(table(income[,c("inc78_factor","educ")])/sum(table(income[,c("inc78_factor
       2,function(x) x/sum(x))
 ```
 
-#### Response variable vs categorical variables
+#### Response variable vs discrete variables, interaction with other variables
 
 ```{r, echo=FALSE}
-# Check interactions between age and other predictors: why age??
+# Check interactions between age and other predictors
 ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~treat)
 ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~black)
 ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~hispan)
@@ -81,10 +127,10 @@ ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~
 
 #### Chi-square test for independence
 ```{r}
-chisq.test(table(income[,c("nodegree","age")])) 
-chisq.test(table(income[,c("treat","educ")])) 
-chisq.test(table(income[,c("black","educ")])) 
-chisq.test(table(income[,c("married","educ")])) 
+chisq.test(table(income[,c("nodegree","age")]))
+chisq.test(table(income[,c("treat","educ")]))
+chisq.test(table(income[,c("black","educ")]))
+chisq.test(table(income[,c("married","educ")]))
 chisq.test(table(income[,c("hispan","inc78_factor")])) # independent hispan inc78_factor
 chisq.test(table(income[,c("black","inc78_factor")]))
 chisq.test(table(income[,c("married","inc78_factor")])) # independent
@@ -97,8 +143,9 @@ chisq.test(table(income[,c("hispan","nodegree")]))
 chisq.test(table(income[,c("hispan","married")])) # independent hispan married
 ```
 
-
 ### Model
+
+#### Model Selection: AIC
 ```{r}
 full <- glm(inc78_factor~treat+age+educ+black+hispan+married+nodegree+nodegree:age+treat:black+treat:hispan,family = binomial,data = income)
 summary(full)
@@ -118,12 +165,12 @@ resid <- residuals(raw,"resp")
 binnedplot(x=fitted(raw),y=resid,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band
 ```
 
-
 ```{r}
 null <- glm(inc78_factor~treat,data=income,family=binomial)
 selection <- step(null,scope=formula(full),direction="both",trace=0)
 ```
 
+#### Model Selection: ANOVA Chi-square test
 ```{r}
 fit1 <- glm(inc78_factor~treat+age+black,family = binomial,data = income)
 anova(selection,fit1,test = 'Chisq')
@@ -153,81 +200,77 @@ fit9 <- glm(inc78_factor~black+age*nodegree,family = binomial,data = income)
 anova(fit9,selection,test = 'Chisq')
 ```
 
+#### Final Model
 ```{r}
 final <- glm(inc78_factor~black+treat*age,family = binomial,data = income)
+#final_ploy <- glm(inc78_factor~black+treat*age+poly(age,3),family = binomial,data = income)
 vif(final)
 summary(final)
 exp(final$coefficients)
-
-residFinal <- residuals(final,"resp")
-binnedplot(x=fitted(final),y=residFinal,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band
+exp(confint(final,level = 0.9))
 ```
+
+#### Model assessment: binned residual plot
 ```{r}
+residold <- residuals(final,"resp")
+binnedplot(x=fitted(final),y=residold,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band -> 95.8%
+binnedplot(x=income$age,y=residold,xlab="Age",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+```
+
+##### Add polynomial term - for reference
+```{r include=FALSE}
+#residnew <- residuals(final_poly,"resp")
+#binnedplot(x=fitted(final_poly),y=residold,xlab="Pred. probabilities",col.int="red4",ylab="Avg. #residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band -> 95.8%
+#binnedplot(x=income$age,y=residnew,xlab="Age",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+```
+
+#### Model validation: Confusion matrix, Sensitivity, Specificity, and ROC curve
+
+##### Threshold = 0.5, final model
+```{r}
+# Threshold = 0.5
 anova(raw,final,test = 'Chisq')
 Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(final) >= 0.5, "1","0")),
                             as.factor(income$inc78_factor),positive = "1")
 Conf_mat$table
 Conf_mat$overall["Accuracy"];
 Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+```
 
+##### Threshold = 0.5, model with polynomial term, model with all predictors
+```{r include=FALSE}
+# Threshold = 0.5
+#anova(final,final_poly,test = 'Chisq')
+#Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(newfinal) >= 0.5, "1","0")),
+#                            as.factor(income$inc78_factor),positive = "1")
+#Conf_mat$table
+#Conf_mat$overall["Accuracy"];
+#Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+
+#Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(raw) >= 0.5, "1","0")),
+#                            as.factor(income$inc78_factor),positive = "1")
+#Conf_mat$table
+#Conf_mat$overall["Accuracy"];
+#Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+```
+
+##### Threshold = mean-level, final model
+```{r, include=F}
+# Consider deleting this chunk
+# Threshold = mean level
 Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(final) >= mean(income$inc78), "1","0")),
                             as.factor(income$inc78_factor),positive = "1")
 Conf_mat$table
 Conf_mat$overall["Accuracy"];
 Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+```
 
-roc(income$inc78_factor,fitted(final),plot=T,print.thres="best",print.auc=T,legacy.axes=T,col="red3")
-roc(income$inc78_factor,fitted(raw),plot=T,legacy.axes=T,add=T,col="blue3")
+##### ROC curve: final model vs model with all predictors
+```{r warning=FALSE,message=FALSE}
+# ROC curve
+invisible(roc(income$inc78_factor,fitted(final),plot=T,print.thres="best",print.auc=T,legacy.axes=T,col="red3"))
+invisible(roc(income$inc78_factor,fitted(raw),plot=T,legacy.axes=T,add=T,col="blue3"))
 legend('bottomright', c('final','raw'),lty=c(1,1),
        lwd=c(2,2),col=c('red3','blue3'))
 ```
-
-## Part1
-
-```{r}
-income <- read.table("C:/Users/renha/Desktop/IDS702/lalondedata.txt",header = TRUE,sep = ",",stringsAsFactors = FALSE,row.names = 'X')
-income$treat <- as.factor(income$treat)
-income$black <- as.factor(income$black)
-income$hispan <- as.factor(income$hispan)
-income$married <- as.factor(income$married)
-income$nodegree <- as.factor(income$nodegree)
-income$change <- income$re78 - income$re74
-summary(income)
-```
-
-```{r}
-# continuous
-hist(income$re78)
-hist(log(income$re78))
-pairs(income[,-c(1,4,5,6,7,11)])
-
-plot(income$age,income$edu)
-plot(income$age,income$re78)
-plot(income$educ,income$re78)
-```
-
-
-```{r}
-# categorical
-ggplot(data= income, aes(x=treat, y=re78)) + geom_boxplot() 
-
-ggplot(data= income, aes(x=as.factor(educ), y=re78)) + geom_boxplot() + facet_wrap(~treat)
-ggplot(data= income, aes(x=black, y=re78)) + geom_boxplot() + facet_wrap(~treat) # significant individually
-ggplot(data= income, aes(x=hispan, y=re78)) + geom_boxplot() + facet_wrap(~treat) # individually
-ggplot(data= income, aes(x=married, y=re78)) + geom_boxplot() + facet_wrap(~treat) # individually
-ggplot(data= income, aes(x=nodegree, y=re78)) + geom_boxplot() + facet_wrap(~treat) # individually
-
-```
-
-```{r}
-ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() 
-
-ggplot(data= income, aes(x=as.factor(educ), y=change)) + geom_boxplot() + facet_wrap(~treat)
-ggplot(data= income, aes(x=black, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction
-ggplot(data= income, aes(x=hispan, y=change)) + geom_boxplot() + facet_wrap(~treat) # individually
-ggplot(data= income, aes(x=married, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction
-#ggplot(data= income, aes(x=nodegree, y=change)) + geom_boxplot() + facet_wrap(~treat) 
-ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() + facet_wrap(~nodegree) # individually
-```
-
 

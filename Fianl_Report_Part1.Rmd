@@ -13,9 +13,89 @@ output: html_notebook
 
 It is common to believe that job training is efficient in boosting the earnings of disadvantaged workers. In 1970s, several experiments was conducted to explore the real impact of job training on wages, including the National Supported Work (NSW) Demonstration[1]. In the experiment, eligible workers were assigned to receive job training, and their incomes in 1973, 1974, and 1977 were recorded accordingly.
 
-This analysis's primary goal is to assess whether receiving job training has a significant effect on annual earnings and what is the range of the effect. Other considerations include whether this effect differs by demographic groups in terms of age, education, and racial identity. We're also interested in exploring other associations with wage.
+This analysis's primary goal is to assess whether receiving job training has a significant effect on annual earnings and what is the range of the effect. Other considerations include whether this effect differs by demographic groups in terms of age, education, and racial identity. We're also interested in exploring other associations with wages.
 
 **Data Processing**
 
 The original data set is accessed via the NSW Demonstration experiment with 614 non-empty observations. To explore the effect of getting job training on annual wage, we create a numeric variable 'change' to quantify the changes in earnings from 1974 to 1978.
 
+```{r data processing}
+# Change the variable to factor levels
+income = income %>% mutate(
+        inc78 = case_when(
+                re78 == 0 ~ 0,
+                re78 > 0 ~ 1 )
+        )
+
+# Change to factors, apply to part I and part II
+income$treat <- as.factor(income$treat)
+income$black <- as.factor(income$black)
+income$hispan <- as.factor(income$hispan)
+income$married <- as.factor(income$married)
+income$nodegree <- as.factor(income$nodegree)
+
+# Response variable for part I, change in income - continuous
+income$change <- income$re78 - income$re74
+```
+
+## Exploratory Data Analysis
+
+EDA is a process of uncovering useful information and pattern related to non-zero wages by statistical summary, table, and visualization.
+
+**Response_Variable**
+
+The distribution of change in earnings follows an approximately normal distribution.
+
+```{r histogram}
+hist(income$change)
+```
+
+**Treatment vs Non-zero Wage**
+
+Given the boxplot of change in terms of whether the worker gets the job training, we observe a different in the average amount of change in earnings. That is, compared to people without job training, people having job training tends to receive larger increase in income in 1978.
+
+```{r}
+ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() 
+```
+
+**Other Variable**
+
+There's an interesting association between married and change because the difference in mean in the boxplot suggests a decrease in wage when the workers get married compared to those who do not. In terms of numeric variable, the scatter plot between change and age indicates a negative correlated pattern that the average change in wage decreases as the age increases. We will fit both predictors in the model selection process to explore the significance of the effect.
+
+```{r}
+ggplot(data= income, aes(x=married, y=change)) + geom_boxplot() 
+ggplot(data= income, aes(x=age, y=change)) + geom_point() + geom_smooth(method = 'lm')
+```
+
+**Interaction Effect**
+
+Interaction effects occur when the impact of one variable depends on the value of another variable. In this case, we explore the impact of demographic groups on the association between receiving job training and increasing wages using faced scatter plot and fitted line. 
+
+Given whether the participants received job training, the correlation between non-zero wage and age changes from negative to positive. The difference indicates that workers without job training tend to receive a decrease in earnings as they get older, while workers who received job training receive a net benefit from age and training as their income increases as they grow in age. To draw a solid conclusion on interaction terms' impact, we will determine their efficiency in the modeling selection process.
+
+```{r}
+ggplot(data= income, aes(x=age, y=change)) + geom_point() + geom_smooth(method = 'lm') + facet_wrap(~treat)
+```
+
+## Model Selection 
+
+The model selection is based on two methods: AIC Stepwise Selection and ANOVA chi-square test. 
+
+Applying stepwise selection on the full model with all potential predictor and a null model containing only treatment as a predictor, we are able to combine the forward and backward selection and pick the most significant variables by either adding or removing variables several times to meet the maximum likelihood estimation. The final stepwise regression we get includes three significant variables -- treatment, age and married. Additional variables and interaction terms is added to the existed model one by one and test their efficiency through the ANOVA Chi-square test.
+
+Given a p-value of 0.003 when compare the model with interactions between age and treatment vs. without, we reject the null hypothesis and confirm the interaction term efficient for predicting the changes in wages. Other individual predictors such as nodegree, Black and Hispanic performs poorly on ANOVA test, indicating insignificant effects on annual earning changes between 1974 and 1978.
+
+**Final Model**
+
+In our final model, treatment, married, age and the interaction effects between age and treatments are four significant predictors for predicting the changes annual earnings from 1974 to 1978, using a threshold of 0.1. The R-square of the model is 0.074 which means that the model explains 7.4% of the variability in the data. 
+
+*Association suggested by the final model*
+
+ --- Keep other variables the same, compared to people without job training, people receiving job training, in average, encounter a 4586 decreases in annual earnings. Moreover, keeping other variables the same, one unit increase in age will result in a 135 dollar decreases in annual earnings from 1974 to 1978. However, the effect of job training changes as people get older. Worker with training get 255.88 dollar net increase in the annual wages when their age increases by one-unit, compared to those who does not receive the training. The net effect of age and treatment will shift from negative to positive after a certain age. [..........]
+ 
+ --- There's a strong association between married and changes in annual wages. Keep other variables the constant, compared to people who got married, 
+ 
+```{r}
+summary(fit7)
+confint(fit7, level = 0.9)
+```

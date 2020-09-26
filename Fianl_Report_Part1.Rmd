@@ -93,7 +93,7 @@ In our final model, treatment, married, age and the interaction effects between 
 
  --- Keep other variables the same, compared to people without job training, people receiving job training, in average, encounter a 4586 decreases in annual earnings. Moreover, keeping other variables the same, one unit increase in age will result in a 135 dollar decreases in annual earnings from 1974 to 1978. However, the effect of job training changes as people get older. Worker with training get 255.88 dollar net increase in the annual wages when their age increases by one-unit, compared to those who does not receive the training. The net effect of age and treatment will shift from negative to positive after a certain age. [..........]
  
- --- There's a strong association between married and changes in annual wages. Keep other variables the constant, compared to people who got married, 
+ --- There's a strong association between married and changes in annual wages. Keep other variables the constant, compared to people who did not get married, people who did, in average, tend to have 1756.52 dollars decrease in annual earnings. 
  
 ```{r}
 summary(fit7)

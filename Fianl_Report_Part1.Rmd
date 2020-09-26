@@ -1,0 +1,21 @@
+---
+title: "Final Report"
+author: "Team 6 purple"
+date: "9/17/2020"
+output: html_notebook
+---
+
+# PART I -- 
+
+## Summary
+
+## Introduction
+
+It is common to believe that job training is efficient in boosting the earnings of disadvantaged workers. In 1970s, several experiments was conducted to explore the real impact of job training on wages, including the National Supported Work (NSW) Demonstration[1]. In the experiment, eligible workers were assigned to receive job training, and their incomes in 1973, 1974, and 1977 were recorded accordingly.
+
+This analysis's primary goal is to assess whether receiving job training has a significant effect on annual earnings and what is the range of the effect. Other considerations include whether this effect differs by demographic groups in terms of age, education, and racial identity. We're also interested in exploring other associations with wage.
+
+**Data Processing**
+
+The original data set is accessed via the NSW Demonstration experiment with 614 non-empty observations. To explore the effect of getting job training on annual wage, we create a numeric variable 'change' to quantify the changes in earnings from 1974 to 1978.
+

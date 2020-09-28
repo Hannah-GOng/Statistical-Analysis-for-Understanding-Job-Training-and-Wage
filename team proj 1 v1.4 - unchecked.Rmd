@@ -58,9 +58,10 @@ income$inc78_factor <- as.factor(income$inc78)
 ### EDA
 
 #### Response variable - change in income
+
 ```{r}
 hist(income$change)
-plot(income$change)
+summary(income$change)
 ```
 
 #### Response variable vs continous variables
@@ -94,6 +95,7 @@ raw <- lm(change~treat+age+educ+black+hispan+married+nodegree,data = income)
 null <- lm(change~treat,data=income)
 step(null,scope=formula(raw),direction="both",trace=0)
 ```
+
 ```{r}
 fit1 <- lm(change~treat+age+married, data = income)
 fit2 <- lm(change~treat+age+married+nodegree+nodegree:treat, data = income)
@@ -109,6 +111,7 @@ anova(fit1,fit6)
 fit7 <- lm(change~treat+age+married+treat:age, data = income)
 anova(fit1,fit7)
 ```
+
 ```{r}
 vif(fit7)
 ggplot(data = income,aes(x=age,y = fit7$residuals))+

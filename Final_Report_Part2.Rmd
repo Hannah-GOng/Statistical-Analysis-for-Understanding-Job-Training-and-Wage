@@ -2,7 +2,9 @@
 title: "Final Report"
 author: "Team 6 purple"
 date: "9/17/2020"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 # PART II -- 
@@ -41,11 +43,11 @@ library(knitr)
 library(kableExtra)
 ```
 
-```{r import data, echo=FALSE}
+```{r import data}
 income = read.table("lalondedata.txt", header = T, sep = ",", dec = ".")
 ```
 
-```{r data processing, echo=FALSE}
+```{r data processing}
 # Change the variable to factor levels
 income = income %>% mutate(
         inc78 = case_when(
@@ -69,7 +71,7 @@ EDA is a process of uncovering useful information and pattern related to non-zer
 
 To get a general understanding of the baseline probability for model fitting and further analysis and examine the sufficiency of observations for both levels, we conduct a table of the response variables 'inc78_factor'. According to the table, among the 614 participants, the average possibility of getting a non-zero wage job in 1978 is around 76%.
 
-```{r response varible, echo=FALSE}
+```{r response varible}
 table(income$inc78_factor)
 ```
 
@@ -77,7 +79,7 @@ table(income$inc78_factor)
 
 As an independent predictor, the treatment could be a reasonable predictor for predicting the possibility of having a non-zero income. Given the condition where a worker received job training, the conditional probability of getting positive pay decreases slightly compared to those who did not. However, according to the result of chi-square test (p-value = 0.77), the difference is not significant. Therefore, we need to exam the effect of treatment and possible interaction effects in the final model.
 
-```{r, echo = FALSE}
+```{r}
 apply(table(income[,c("inc78_factor","treat")])/sum(table(income[,c("inc78_factor","treat")])), 2, function(x) x/sum(x))
 chisq.test(table(income[,c("inc78_factor","treat")]))
 ```
@@ -86,7 +88,7 @@ chisq.test(table(income[,c("inc78_factor","treat")]))
 
 Regarding other categorical variables, the association between Black and Non-zero income seems to be significant according to the conditional probability table. There's a lower conditional possibility of having non-zero wage when the worker's racial identity is Black, compared to workers in other racial groups. Even though there's a difference between the non-Hispanic and Hispanic groups, the change could result from insufficient observations on Hispanic workers. Since no significant change in the possibilities cross different levels is observed in 'married' and 'nondegree,' they might be pool predictor for predicting the non-zero wage rate. Still, possible interaction effects will be tested later. 
 
-```{r, echo = FALSE}
+```{r}
 apply(table(income[,c("inc78_factor","black")])/sum(table(income[,c("inc78_factor","black")])),
       2,function(x) x/sum(x))
 
@@ -98,13 +100,12 @@ apply(table(income[,c("inc78_factor","hispan")])/sum(table(income[,c("inc78_fact
 
 According to the boxplot analysis, the mean and range of age in the positive earning group is significantly higher zero income group. Given a chi-square test result of 0.002, we suggest a reasonable association between age and a positive wage. The possibility of getting non-zero earning decreases as the worker gets older, keeping everything else the same. However, considering the small sample size in different age groups, the effect of age on non-zero will be re-examed latter in modeling selection.
 
-```{r, echo = FALSE}
+```{r}
 ggplot(income,aes(x = inc78_factor, y = age)) +
   geom_boxplot()
 ```
 
 **Interaction Effect**
-
 
 Interaction effects occur when the impact of one variable depends on the value of another variable. Conditional possibility tables and faceted boxplots are used to test the interaction effect between terms. 
 
@@ -114,7 +115,7 @@ Another notable interaction is between age and degree as the association between
 
 To draw a solid conclusion on interaction terms' impact, we will determine their efficiency in the modeling selection process.
 
-```{r, echo = FALSE}
+```{r}
 ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~treat)
 
 ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~nodegree)
@@ -146,7 +147,7 @@ As the model summary statistics suggested, Black, treatment, age and the interac
  
  -- Keeping everything else the sames, the odds of getting non-zero wages will drop by 52.9% if the worker's racial identity is Black, compared to worker in other racial groups.
 
-```{r, echo = FALSE}
+```{r}
 final <- glm(inc78_factor~black+treat*age,family = binomial,data = income)
 summary(final)
 exp(final$coefficients)
@@ -166,20 +167,17 @@ residFinal <- residuals(final,"resp")
 binnedplot(x=fitted(final),y=residFinal,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band
 ```
 
-```{r}
-# missing a outlier check
-```
-
-```{r collinearity, echo = FALSE}
+```{r collinearity}
 vif(final)
 ```
 
 ## Model Validation
-For model validation, we used a 2x2 confusion matrix for evaluate the performance of out final model. According to the matrix, we got an accuracy of 0.77 which means 77% of the observation are correctly classified by the model. The sensitivity of the test reflects the probability that the prediction will be positive (having non-zero wage) among those who do have non-zero earnings. A 0.99 sensitivity indicates a great true-positive rate of the model. However, the model is less efficient for a correct accurate results when the worker does not have a positive earning since the specificity rate is very low.
+
+For model validation, we used a 2x2 confusion matrix for evaluate the performance of out final model. According to the matrix, we got an accuracy of 0.77 which means 77% of the observation are correctly classified by the model. The sensitivity of the test reflects the probability that the prediction will be positive (having non-zero wage) among those who do have non-zero earnings. A 0.99 sensitivity indicates a great true-positive rate of the model. However, the model is less efficient for giving a correct result when the worker does not have a positive earnings since the specificity rate is very low.
 
 To better understand the performance of the classifier over all possible thresholds, we generated a ROC curve by plotting the True Positive Rate (y-axis) against the False Positive Rate (x-axis). The highest accuracy we can observed from adjusting the threshold for assigning observations to the given class is 0.757.
 
-```{r, echo = FALSE}
+```{r}
 # Consider deleting this chunk
 # Threshold = 0.5
 Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(final) >= 0.5, "1","0")),
@@ -189,12 +187,12 @@ Conf_mat$overall["Accuracy"];
 Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
 ```
 
-```{r, echo = FAlSE}
+**ROC curve: final model vs model with all predictors**
+
+```{r warning=FALSE,message=FALSE}
 # ROC curve
-invisible(roc(income$inc78_factor,fitted(final),plot=T,print.thres="best",print.auc=T,legacy.axes=T,col="red3"))
-invisible(roc(income$inc78_factor,fitted(raw),plot=T,legacy.axes=T,add=T,col="blue3"))
-legend('bottomright', c('final','raw'),lty=c(1,1),
-       lwd=c(2,2),col=c('red3','blue3'))
+invisible(roc(income$inc78_factor,fitted(final),plot=T))
+invisible(roc(income$inc78_factor,fitted(raw),plot=T))
 ```
 
 ## Conclusion and Limitation

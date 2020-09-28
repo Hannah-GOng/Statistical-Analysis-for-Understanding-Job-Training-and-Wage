@@ -2,7 +2,9 @@
 title: "Final Report"
 author: "Team 6 purple"
 date: "9/17/2020"
-output: html_notebook
+output:
+  pdf_document: default
+  html_notebook: default
 ---
 
 # PART I -- 
@@ -98,4 +100,15 @@ In our final model, treatment, married, age and the interaction effects between 
 ```{r}
 summary(fit7)
 confint(fit7, level = 0.9)
+```
+
+## Model Accessment
+
+The residuals vs fitted plot indicates that the residual errors are randomly distributed, inferring that residuals and the fitted values are uncorrelated. Therefore, the assumption of independence and equal variance are sufficiently satisfied in our final model. In the QQ plot of residuals, the majority of points fall on the straight line, suggesting there's no violation of normality assumption. Using the Cook's distance, we are able to determine whether there's outliers and highly influential points that may skew the slope of the model significantly. As all the Cook's distances were determined to be far below 0.5, we keep all the observations in the model.  
+
+Finally, variance inflation factors was used to confirm that no multicolinearity existed in the chosen model. As all the VIFs were confirmed to be below 5 except the interaction terms, the model was finalized and used for inference.
+```{r}
+```
+
+```{r}
 ```

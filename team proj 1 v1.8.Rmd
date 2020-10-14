@@ -1,0 +1,501 @@
+---
+title: "Team proj 1"
+author: "Team 6 purple"
+date: "9/17/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(include = F)
+knitr::opts_chunk$set(out.width = '50%')
+knitr::opts_chunk$set(fig.align="center")
+```
+
+```{r library,message=FALSE}
+library(tidyverse) # Data wrangling
+library(ggplot2) # Plotting
+
+# For logistic regression
+library(arm)
+library(car)
+library(pROC)
+library(e1071)
+library(caret)
+```
+
+```{r import data}
+# CHANGE DIRECTORY
+#income <- read.table("C:/Users/renha/Desktop/IDS702/lalondedata.txt",header = TRUE,sep = ",",stringsAsFactors = FALSE,row.names = 'X')
+income = read.table(file = "D:/MIDS/fall 2020/702 modeling/dataset/lalondedata.txt", header = T, sep = ",", dec = ".")
+```
+
+```{r}
+# Change the variable to factor levels
+income = income %>% mutate(
+        inc78 = case_when(
+                re78 == 0 ~ 0,
+                re78 > 0 ~ 1 ))
+
+# Change to factors, apply to part I and part II
+income$treat <- as.factor(income$treat)
+income$black <- as.factor(income$black)
+income$hispan <- as.factor(income$hispan)
+income$married <- as.factor(income$married)
+income$nodegree <- as.factor(income$nodegree)
+
+
+# Response variable for part I, change in income - continuous
+income$change <- income$re78 - income$re74
+
+# Response variable for part II, inc78_factor - binary
+income$inc78_factor <- as.factor(income$inc78)
+```
+
+## **Part I**
+
+### **1. Introduction**
+
+It is common to believe that job training is efficient in boosting the earnings of disadvantaged workers. In the 1970s, several experiments were conducted to explore the real impact of job training on wages, including the National Supported Work (NSW) Demonstration[1]. In the experiment, eligible workers were assigned to receive job training, and their incomes in 1973, 1974, and 1977 were recorded accordingly.  
+ 
+This primary goal of this analysis is to assess whether receiving job training has a significant effect on annual earnings and what is the range of the impact. Other considerations include whether this effect differs by demographic groups in terms of age, education, and racial identity. We’re also interested in exploring other associations with wages.  
+
+### **2. Data**
+
+#### **2.1 Data Pre-Processing**
+
+The original data set is accessed via the NSW Demonstration experiment with 614 non-empty observations. To explore the effect of getting job training on annual wage, we create a numeric variable ‘change’ to quantify the changes in earnings from 1974 to 1978. By quantifying the response as the change in income, we’re able to eliminate the impact of starting wages and determine if job training resulted in increased wage growth for participating workers.  
+
+#### **2.2 Exploratory Data Analysis**  
+
+The distribution of change in earnings follows an approximately normal distribution, with a range between -25257 to 60308 dollars and a mean of 2234 dollars. 
+Boxplots were used to assess the relationships between categorical variables and change in wages , while scatter plots and fitted lines were used to visualize possible associations between continuous variables and the response variable.
+
+#### **Change in wages vs Treat**
+
+When comparing the boxplot of the wage change for workers who received job training to those that didn’t, the mean values differ. Compared to workers without job training, workers who received the job training appear to have had a greater increase in income from 1974 to 1978.  
+  
+```{r}
+# Check the distribution of change
+#hist(income$change)
+```
+
+#### **Change in wages vs other variables**
+
+Preliminary data analysis suggests that marriage and age have an effect on the wage changes for workers. Using boxplots to visualize the relationship between wage change and marriage, we observe a clear difference in the average value. This pattern suggests that married workers tend to earn less than unmarried workers. Using scatterplots to examine the association between age and changes in wage, we observe that as age increases wage change decreases. We will explore the significance of the relationships between the response, `inc_78`, and the two predictors, marriage and age, in the model selection process and fitting processes. 
+
+```{r}
+# continuous
+#pairs(income[,-c(1,4,5,6,7,11)])# Multicollinearity check?
+# Could add a line y=0
+#plot(income$age,income$edu)# ?? examine interaction?
+#plot(income$age,income$change)
+#plot(income$educ,income$change)
+```
+
+#### **Interactions effect**
+
+```{r}
+ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() 
+ggplot(data= income, aes(x=as.factor(educ), y=change)) + geom_boxplot() + facet_wrap(~treat)
+ggplot(data= income, aes(x=black, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction black:treat
+ggplot(data= income, aes(x=hispan, y=change)) + geom_boxplot() + facet_wrap(~treat) 
+ggplot(data= income, aes(x=married, y=change)) + geom_boxplot() + facet_wrap(~treat) # interaction married:treat
+ggplot(data= income, aes(x=nodegree, y=change)) + geom_boxplot() + facet_wrap(~treat) 
+ggplot(data= income, aes(x=treat, y=change)) + geom_boxplot() + facet_wrap(~nodegree) # nodegree:treat 
+```
+
+```{r,include=TRUE,message=F}
+ggplot(data= income, aes(x=age, y=change)) + 
+  geom_point() + geom_smooth(method = 'lm') + facet_wrap(~treat) +
+  theme_classic()+
+  ggtitle("Interaction: How the effect of treat differs by age")# age:treat
+```
+
+Interaction effects occur when the impact of one variable on the response depends on the value of another variable. This section of the analysis explores the potential impact of demographic groups on the relationship between job training and wage change.  
+
+Job training appears to have a substantial effect on the relationship between age and wage change. The difference in slope indicates that workers without job training tend to earn less as they get older. In contrast, workers who received job training see their incomes increase as they age. The significance of this relationship will be explored further in the model selection and fitting process.  
+
+There also appear to be interactions between our response and other variables such as no-degree, black, and marriage. The slope between job training and annual wages differs for each of those demographic groups. To draw a solid conclusion on the significance of interaction terms, we will determine their efficiency in the modeling selection process.  
+
+
+### **3. Model**
+
+#### **3.1 Model Selection**
+
+The model selection is based on two methods: Stepwise AIC Selection and ANOVA F-test.  
+
+The final stepwise regression gives us three resulting variables – treatment, age, and marriage. To test the significance of these resulting predictors along with any interaction effects of interest, we incrementally tested each element against the baseline AIC model with an ANOVA F-test.  
+
+When comparing the model with interactions between age and treatment and the baseline stepwise regression, we get a p-value of 0.003 and confirm the significance of the interaction term for predicting the changes in wage. Other individual predictors such as nodegree, Black, and Hispanic all perform poorly on the ANOVA test (p-value > 0.05), indicating that they are not significant predictors of wage changes from 1974 and 1978.  
+
+
+```{r}
+raw <- lm(change~treat+age+educ+black+hispan+married+nodegree,data = income)
+null <- lm(change~treat,data=income)
+step(null,scope=formula(raw),direction="both",trace=0)
+```
+
+```{r}
+fit1 <- lm(change~treat+age+married, data = income)
+fit2 <- lm(change~treat+age+married+nodegree+nodegree:treat, data = income)
+anova(fit1,fit2)
+fit3 <- lm(change~treat+age+married+married:treat, data = income)
+anova(fit1,fit3)
+fit4 <- lm(change~treat+age+married+black, data = income)
+anova(fit1,fit4)
+fit5 <- lm(change~treat+age+married+black+black:treat, data = income)
+anova(fit1,fit5)
+fit6 <- lm(change~treat+age+married+nodegree, data = income)
+anova(fit1,fit6)
+fit7 <- lm(change~treat+age+married+treat:age, data = income)
+anova(fit1,fit7)
+```
+
+#### **3.2 Final Model**
+
+$$\widehat{Y}_{Change} = 6072.02 - 4586.31X_{treat:1}-135.79X_{age}-1756.52X_{married:1}+255.88X_{treat1:age}$$
+The predictors in our final model for predicting changes in annual earnings from 1974 to 1978 are treatment, married, age, and the interaction effects between age and treatment. All predictors are significant at a significance level of 0.1. The coefficient of determination (R2) of the model is 0.074.  
+
+```{r}
+ggplot(data = income,aes(x=age,y = fit7$residuals))+
+         geom_point()+
+         geom_smooth(method = 'lm')
+plot(fit7, which = 1)
+plot(fit7, which = 2)
+n <- nrow(model.matrix(fit7))
+p <- ncol(model.matrix(fit7))
+lev_scores <- hatvalues(fit7)
+plot(lev_scores,col=ifelse(lev_scores > (2*p/n), 'red2', 'navy'),type="h",
+     ylab="Leverage score",xlab="Index",main="Leverage Scores for all observations")
+text(x=c(1:n)[lev_scores > (2*p/n)]+c(rep(2,4),-2,2),y=lev_scores[lev_scores > (2*p/n)],
+     labels=c(1:n)[lev_scores > (2*p/n)])
+plot(fit7,which=4,col=c("blue4"))
+threshhold = 2*(p+1)/n
+abline(h=threshhold)
+#plot(fit7,which=5,col=c("blue4"))
+```
+
+```{r,include=T}
+pander::pander(fit7)
+```
+
+Holding other variables constant, job training is correlated with an average decrease in income change between 1974 and 1978 of \$4586, when compared to the baseline of untrained workers. We are 90% confident that the true average decrease in annual earnings is contained in the interval (\$659, \$8513). However, it must be noted that for workers who receive training, aging is correlated with an increase in income on average while aging is inversely correlated with wages for untrained workers. Compared to untrained workers, for those who receive the training, increasing age by one unit is correlated with a 120 dollar net increase in annual wages.  
+
+Holding other variables constant, a one unit increase in age will result in a 135 dollar decrease in annual earnings from 1974 to 1978.  
+
+Holding other variables constant, married workers saw a change in wages that was 1756.52 dollars lower than unmarried workers.
+
+#### **3.3 Model Assessment**
+
+```{r,include=T}
+par(mfrow=c(2,2))
+plot(fit7)
+#confint(fit7, level = 0.9)
+#confint(fit7, level = 0.95)
+```
+  
+**VIF table for final model**  
+  
+```{r, include=T}
+pander::pander(vif(fit7))
+```
+
+The residuals vs fitted plot is randomly distributed, which does not lead us to believe there to be any other underlying relationships in the data. As such, the assumptions of independence and equal variance are sufficiently satisfied in our final model. In the QQ plot of residuals, the majority of points fall on the straight line, suggesting there's no violation of the normality assumption. Plotting the residuals vs age, we determined there’s no violation of linearity assumption as the points appear to be randomly distributed.  
+
+Using Cook's distance, we investigated the data for outliers. As all the Cook's distances were determined to be far below the 0.5 threshold, we can be confident that our data does not contain any influential outliers. Finally, variance inflation factors were used to confirm that no multicollinearity existed in the chosen model.   
+```{r}
+cleaned <- income[-c(132,79,334),]
+new <- lm(change~treat+age+married+treat:age, data = cleaned)
+summary(new)
+vif(new)
+```
+
+#### **3.4 Model Validation**
+
+```{r}
+set.seed(702) 
+income <- income[sample(nrow(income)),]
+K <- 10
+RMSE1 <- matrix(0,nrow=K,ncol=1)
+RMSE2 <- matrix(0,nrow=K,ncol=1)
+kth_fold <- cut(seq(1,nrow(income)),breaks=K,labels=FALSE)
+for(k in 1:K){
+        test_index <- which(kth_fold==k)
+        train <- income[-test_index,]
+        test <- income[test_index,]
+        test.fit1 <- lm(change~treat+age+married+treat:age, data = train)
+        test.fit2 <- lm(change~treat+age+married, data = train)
+        y_test_pred1 <- predict(test.fit1,test)
+        y_test_pred2 <- predict(test.fit2,test)
+        RMSE1[k,] <- sqrt(mean((test$change - (y_test_pred1))^2))
+        RMSE2[k,] <- sqrt(mean((test$change - (y_test_pred2))^2))
+}
+mean(RMSE1)
+mean(RMSE2)
+```
+
+```{r RMSE table,include=T}
+AvgRMSE <- matrix(c(round(mean(RMSE1),2), round(mean(RMSE2),2)),nrow=1,ncol=2)
+colnames(AvgRMSE) <- c('Final Model','Raw model')
+row.names(AvgRMSE) <- 'Average RMSE'
+pander::pander(AvgRMSE)
+```
+
+To determine the efficiency of our final model, the k-fold validation and root-mean-square error is used to measure the differences between values predicted by our final model and the value observed. As we compare the current RMSE (7707) to the RMSE of our raw model which includes only main effects of all predictors (7750), we confirmed that the final model is a slight improvement over the original model.
+
+#### **4. Conclusion** 
+
+Consider the effect of treatment alone, there’s a negative association between job training and annual wages. On average, trained workers tend to earn 4586 dollars less annually compared to untrained workers. We are  90% confident that the true decrease in income when compared to untrained workers is contained in the range [\$659, \$8513]. However, the effect of treatment differs as workers age. Trained workers increased their incomes by 120 dollars for every year they aged, compared to untrained ones whose incomes decreased. Marriage also has a significant influence on the change in annual wage. Married workers saw their incomes increase by 1756.52 dollars less than unmarried workers.  
+
+#### **5. Limitation** 
+
+There are many limitations of this analysis and the final model in terms of the ability to explain the change in worker wages. First, the sample size is not sufficient enough for exploring interactions between all our predictors, as we lack observations in some levels of education or for certain racial groups. Finally, the low coefficient of determination indicates the model only accounts for 7.4% of the variability in the response. While we could have improved our R2 by including more predictors in our model, we chose to only focus on statistically significant predictors. A model that can more accurately predict changes in worker wages would likely have to include additional data not included in this analysis.
+
+
+## **Part II**
+
+### **1. Introduction**
+
+There is a common assumption that job training is efficient in boosting the earnings of disadvantaged workers. However, in the 1970s, several experiments were conducted to explore the real impact of job training on wages, including the National Supported Work (NSW) Demonstration[1]. In the experiment, eligible workers were assigned to receive job training, and their incomes in 1973, 1974, and 1977 were recorded accordingly.  
+
+This analysis's primary goal is to assess whether receiving job training has a significant result on a worker's probability of obtaining a non-zero wage. Other considerations include whether this effect differs by demographic group (i.e., age, education, racial identity). We are also interested in exploring any other associations with positive income.
+
+### **2. Data**
+
+#### **2.1 Data Preprocessing**
+
+The original data set is accessed via the NSW Demonstration experiment with 614 non-empty observations. The response variable from this dataset we chose to observe is the participant reported income in 1978, `re_78`. However, since this analysis features the probability of having positive earnings, we created a factorized, binary variable `inc78_factor` - where “0” represents a worker with zero income, and “1” indicates a worker with any positive income. This variable, `inc78_factor`, is our response variable for the analysis. The cleaned dataset included six categorical variables -- marriage, high school degree, Black, Hispanic, education, treatment-- and one discrete variable, age.
+
+#### **2.2 Exploratory Data Analysis**
+
+To get a general understanding of the baseline probabilities of each outcome, and to ensure that sufficient observations for both levels are included in the dataset, we constructed a table of the response variable in order to visualize its distribution. Among the 614 participants observed in the study, the probability of having a non-zero income in 1978 is ~76%.  
+
+Conditional possibility tables assess the relationship between categorical variables and non-zero wages while boxplots are generated to visualize the possible association between numeric predictors and non-zero wages.
+ 
+#### **Response variable vs treat**
+
+There could exist a negative correlation between treatment and the possibility of having non-zero income. Given the condition where a worker received job training, the conditional probability of getting positive pay decreases slightly compared to those who did not. However, further exploration of this relationship using a chi-squared test (p-value = 0.77)  suggests that the two variables are independent of each other. This relationship with treat, and any interactions between treat and other predictors will need to be further examined in the final model.
+
+**Table for `inc78_factor` vs `treat`**  
+```{r, include=T}
+pander::pander(apply(table(income[,c("inc78_factor","treat")])/sum(table(income[,c("inc78_factor","treat")])),
+      2,function(x) x/sum(x)))# need
+```
+
+#### **Response variable vs other predictors** 
+
+Observing other categorical variables, there appears to be an association between Black and non-zero income. A conditional probability table shows that Black participants have a lower probability of having non-zero income when compared to workers of other racial groups. Preliminary data exploration suggests a difference in the response between non-Hispanic and Hispanic participants, however there are insufficient Hispanic participants to appropriately evaluate this relationship. Changes in marriage and high school degree predictors do not appear to have an effect on the probability of workers earning a positive income.  
+
+For our continuous variable, age, boxplots were used to analyze its relationships with the response and to look for potential interactions with other predictors. For participants that reported a positive income, the average worker age appears higher than the zero income group. Further exploration of this relationship using a chi-square test (p-value = 0.002) suggests that the two variables are not independent of each other. At this stage, the probability of having non-zero income appears to decrease as the worker ages, however, considering the small sample size in individual age groups, the significance of the effect age has on the response will need to be re-examined when fitting the model.
+
+```{r}
+apply(table(income[,c("inc78_factor","black")])/sum(table(income[,c("inc78_factor","black")])),
+      2,function(x) x/sum(x))
+apply(table(income[,c("inc78_factor","hispan")])/sum(table(income[,c("inc78_factor","hispan")])),
+      2,function(x) x/sum(x))
+apply(table(income[,c("inc78_factor","married")])/sum(table(income[,c("inc78_factor","married")])),
+      2,function(x) x/sum(x))
+apply(table(income[,c("inc78_factor","nodegree")])/sum(table(income[,c("inc78_factor","nodegree")])),
+      2,function(x) x/sum(x))
+apply(table(income[,c("inc78_factor","educ")])/sum(table(income[,c("inc78_factor","educ")])),
+      2,function(x) x/sum(x))
+```
+
+#### **Interaction effect**
+
+Interaction effects occur when the impact of one variable on the response depends on the value of another variable. Conditional possibility tables and faceted boxplots are used to test the interaction effect between variables.  
+
+```{r,include=T}
+ggplot(data= income, aes(x=age, y=inc78_factor,fill = treat)) + geom_boxplot() + facet_wrap(~treat) +
+  theme_classic()+ggtitle('Interaction: how the effect of treat differs by age')# needed
+```
+
+The relationship between non-zero income and age is different for participants that did and did not receive training, indicating a  potential interaction effect between treatment(training) and age. For trained workers, positive income probability appears to increase as the worker ages, while for untrained workers age appears to be correlated with a decrease in the probability of earning a positive income.  
+
+The association between inc78_factor and age changes significantly when comparing participants with and without high school degrees, indicating a potential interaction between age and nodegree. Positive income probability appears to stay the same, or even potentially increase as a worker with a high school degree grows older, while for non high school graduates the probability of earning a positive income decreases as they age.  
+
+To come to an evidence-based conclusion on the interaction terms we will evaluate their significance in the modeling selection process.
+
+```{r}
+ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~black)
+ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~hispan)
+ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~married)
+ggplot(data= income, aes(x=age, y=inc78_factor)) + geom_boxplot() + facet_wrap(~nodegree)
+```
+
+```{r}
+chisq.test(table(income[,c("nodegree","age")]))
+chisq.test(table(income[,c("treat","educ")]))
+chisq.test(table(income[,c("black","educ")]))
+chisq.test(table(income[,c("married","educ")]))
+chisq.test(table(income[,c("hispan","inc78_factor")])) # independent hispan inc78_factor
+chisq.test(table(income[,c("black","inc78_factor")]))
+chisq.test(table(income[,c("married","inc78_factor")])) # independent
+chisq.test(table(income[,c("nodegree","inc78_factor")])) # independent
+
+chisq.test(table(income[,c("hispan","age")])) # independent hispan age
+chisq.test(table(income[,c("hispan","educ")]))
+chisq.test(table(income[,c("hispan","black")]))
+chisq.test(table(income[,c("hispan","nodegree")]))
+chisq.test(table(income[,c("hispan","married")])) # independent hispan married
+```
+
+### **3. Model**
+
+#### **3.1 Model Selection**
+
+The model selection followed two methodologies: AIC Stepwise Selection and ANOVA chi-square test.  
+
+At the end of the process, the resulting variables are age and black .To test the significance of these resulting predictors along with any interaction effects of interest, we incrementally tested each element against the baseline AIC model with an ANOVA chi-square test.  
+
+The inclusion of the interaction of age and treatment is a significant predictor in our model (p-value = 0.038). We will include the interaction in our final model predicting positive wage probability.  
+
+Even though the interaction effect between age and high school degree appeared significant in EDA, assessment of the interaction found the term to be negligible. Other individual predictors such as nodegree, married and Hispanic have poor performance on ANOVA test (p-value > 0.05), indicating they are not significant predictors of positive wage probability.
+
+```{r}
+full <- glm(inc78_factor~treat+age+educ+black+hispan+married+nodegree+nodegree:age+treat:black+treat:hispan,family = binomial,data = income)
+summary(full)
+residFull <- residuals(full,"resp")
+binnedplot(x=fitted(full),y=residFull,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band
+```
+
+```{r}
+raw <- glm(inc78_factor~treat+age+educ+black+hispan+married+nodegree,family = binomial,data = income)
+summary(raw)
+```
+
+```{r}
+resid <- residuals(raw,"resp")
+binnedplot(x=fitted(raw),y=resid,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band
+```
+
+```{r}
+null <- glm(inc78_factor~treat,data=income,family=binomial)
+selection <- step(null,scope=formula(full),direction="both",trace=0)
+```
+
+```{r}
+fit1 <- glm(inc78_factor~treat+age+black,family = binomial,data = income)
+anova(selection,fit1,test = 'Chisq')
+
+fit2 <- glm(inc78_factor~age+treat*black,family = binomial,data = income)
+anova(fit2,selection,test = 'Chisq')
+
+fit3 <- glm(inc78_factor~age+black+treat*hispan,family = binomial,data = income)
+anova(fit3,selection,test = 'Chisq')
+
+fit4 <- glm(inc78_factor~black+treat*age,family = binomial,data = income)
+anova(fit4,selection,test = 'Chisq') # treat:age significant
+
+fit5 <- glm(inc78_factor~age+black+treat*educ,family = binomial,data = income)
+anova(fit5,selection,test = 'Chisq')
+
+fit6 <- glm(inc78_factor~age+black+treat*married,family = binomial,data = income)
+anova(fit6,selection,test = 'Chisq')
+
+fit7 <- glm(inc78_factor~age+black+treat*nodegree,family = binomial,data = income)
+anova(fit7,selection,test = 'Chisq')
+
+fit8 <- glm(inc78_factor~treat+black+age*nodegree,family = binomial,data = income)
+anova(fit8,fit7,test = 'Chisq')
+
+fit9 <- glm(inc78_factor~black+age*nodegree,family = binomial,data = income)
+anova(fit9,selection,test = 'Chisq')
+```
+
+#### **3.2 Final Model**
+
+At a 0.1 significance level, the four significant predictors in our final model are black, treatment, age and the interaction term between age and treatment. The residual deviance of the final model is 643.51 which is an improvement from the null deviance (666.5). This provides evidence that the model with the predictors is reasonable for predicting the probability of earning non-zero wage.  
+
+```{r}
+final <- glm(inc78_factor~black+treat*age,family = binomial,data = income)
+#final_ploy <- glm(inc78_factor~black+treat*age+poly(age,3),family = binomial,data = income)
+vif(final)
+summary(final)
+exp(final$coefficients)
+exp(confint(final,level = 0.9))
+```
+
+$$log(\dfrac{\pi_i}{1-\pi_i})=2.558-0.753X_{black:1}-1.289X_{treat:1}-0.04X_{age}+0.06X_{treat1:age}$$
+
+```{r,include=TRUE}
+pander::pander(final)
+```
+
+Keeping other variables constant, compared to people without job training, the average odds of having a non-zero pay for trained workers is 72% lower. We are 90% confident that the true decrease in odds is between 7% and 92%. However, it must be noted that the effect of treatment on positive income probability differs according to age. For trained workers, a one unit increase in age is correlated with a 2.3% net increase in the odds of earning a non-zero wage, when compared to untrained workers.  
+
+Holding other variables constant, a one unit increase in age will result in a 3.9% decrease in the average odds of earning a non-zero wage.  
+
+Holding other variables constant, the odds of earning a non-zero wage is 52.9% for Black workers, compared to the baseline of white workers.  
+
+#### **3.3 Model Assessment**
+
+```{r,include=T}
+par(mfrow=c(2,1))
+residold <- residuals(final,"resp")
+binnedplot(x=fitted(final),y=residold,xlab="Pred. probabilities",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy") # 92% within SE band -> 95.8%
+binnedplot(x=income$age,y=residold,xlab="Age",col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+```
+
+To assess our final model we analyzed the binned residual plots between the raw residuals for fitted logistic regression vs each predictor as well as the residuals vs predicted probability. Ninety-five percent of the observations lay within the plot boundaries, and the plot appears to be sufficiently random. Model assumptions do not appear to be violated.  
+
+**VIF table for final model**  
+
+```{r,include=T}
+pander::pander(vif(final))
+```
+
+Finally, variance inflation factors were used to explore any potential multicollinearity effects between predictors in the chosen model. As all the VIFs were confirmed to be below 5 except the interaction terms, we are confident that there are no significant multicollinearity effects in the model.  
+
+#### **3.4 Model Validation**
+
+When using our model for predictions with a decision threshold of 0.5, the accuracy of the final model is 0.77, model sensitivity is 0.99, and model specificity is 0.04.  
+
+To further assess the performance of the classifier, we generated a ROC curve by plotting the True Positive Rate (y-axis) against the False Positive Rate (x-axis). The highest AUC we can observe is 0.617.  
+
+```{r}
+# Threshold = 0.5
+anova(raw,final,test = 'Chisq')
+Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(final) >= 0.5, "1","0")),
+                            as.factor(income$inc78_factor),positive = "1")
+Conf_mat$table
+Conf_mat$overall["Accuracy"];
+Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+```
+
+```{r}
+# Threshold = mean level
+Conf_mat <- confusionMatrix(as.factor(ifelse(fitted(final) >= mean(income$inc78), "1","0")),
+                            as.factor(income$inc78_factor),positive = "1")
+Conf_mat$table
+Conf_mat$overall["Accuracy"];
+Conf_mat$byClass[c("Sensitivity","Specificity")] #True positive rate and True negative rate
+```
+
+#### **ROC curve: final model vs model with all predictors**
+```{r,warning=FALSE,message=FALSE,include=T}
+# ROC curve
+invisible(roc(income$inc78_factor,fitted(final),plot=T,print.thres="best",print.auc=T,legacy.axes=T,col="red3"))
+invisible(roc(income$inc78_factor,fitted(raw),plot=T,print.thres="best",legacy.axes=T,add=T,col="blue3"))
+legend('bottomright', c('final','raw'),lty=c(1,1),
+       lwd=c(2,2),col=c('red3','blue3'))
+```
+
+According to the ROC curve, at optimal decision threshold, sensitivity is 0.650 and 1-specificity is 0.569, with AUC of 0.617. Sensitivity on the y axis measures the true positive rate and among all positive cases the final model classified, 65 percent of them are indeed non-zero wages. Meanwhile, 1-Specificity on the x axis refers to false negatives and for all negative cases the final model reported, 57 percent of them are falsely classified as zero wages. Compared to AUC of 0.5 (no diagnostic ability), AUC of 0.617 indicates that the final model has some diagnostic ability for predicting non-zero wages but the performance is not ideal.  
+
+### **4. Conclusion**  
+
+Considering the effect of job training alone, the average odds of earning a non-zero pay for trained workers is 72% lower when compared to untrained workers. We are 90% confident that the actual decrease is contained in the interval (7%, 92%). However, the effect of job training differs across ages. Compared to untrained workers, workers who received training tend to have a 2.3% net increase in the odds of earning a non-zero wage as their age increases by one-unit.  
+
+Besides treatment and age, Black is also an influential factor for predicting the probability of earning a non-zero wage. Compared to White workers, the odds of earning a non-zero wage is 52.9% lower for Black workers, keeping other variables constant.  
+
+### **5. Limitation** 
+
+According to the result of ROC, the model does not perform well in indicating zero earnings among workers. An accuracy of 77% also suggests limitations of the model in explaining the response variable. As we mentioned earlier, the sample size is not sufficient enough for exploring the real effect of each variable across all levels, especially the interaction effect between predictors. Most importantly, we fail to consider economic factors that might lead to unemployment. Other confounding factors such as the industry, employment status, hourly payment are missing in the observation.  
+
+### Appendix
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+```

@@ -1,4 +1,4 @@
-# Data-Analysis-Project-On-Job-Training-and-Wage
+# Statistical Analysis for Understanding Job Training and Wage
 
 ## Introduction
 

@@ -1,0 +1,345 @@
+---
+title: "Team Project 2"
+output: html_document
+---
+
+# Load necessary libraries and Preprocessing
+
+```{r load libraries}
+# install.packages(ggplot2)
+# install.packages('influence.ME')
+library(ggplot2)
+library(dplyr)
+library(influence.ME)
+library(knitr)
+library(kableExtra)
+```
+
+
+```{r data preprocessing}
+bioassay <- read.table("bioassay.txt",header = TRUE,sep = " ")
+#bioassay <- read.table("bioassay.txt",header = TRUE,sep = " ")
+bioassay$protocol_factor = as.factor(bioassay$protocol)
+bioassay$lab_factor = as.factor(bioassay$lab)
+bioassay$group_factor = as.factor(bioassay$group)
+bioassay$uterus = as.numeric(bioassay$uterus)
+bioassay$weight = as.numeric(bioassay$weight)
+```
+
+```{r new dataset}
+bio = na.omit(bioassay) # drop missing values
+```
+
+# EDA
+```{r response_varible}
+# log-transformation
+hist(bio$uterus)
+```
+
+```{r categorical_varible}
+table(bio$lab_factor)
+table(bio$group_factor)
+table(bio$protocol_factor, bio$group_factor) 
+table(bio$protocol_factor, bio$lab_factor) # not every lab has all protocols
+table(bio$group_factor, bio$lab_factor)
+table(bio$group_factor, bio$EE)
+table(bio$group_factor, bio$ZM)
+table(bio$protocol)
+```
+
+```{r}
+ggplot(bio, aes(x = group_factor, y = log(uterus))) + geom_boxplot()
+ggplot(bio, aes(x = protocol_factor, y = log(uterus))) + geom_boxplot() # protocol C, D have higher log(uterus)
+```
+
+```{r grouping varible}
+# consider lab as a control
+# varying for intercept
+p = ggplot(bio, aes(x = lab_factor, y = log(uterus))) + geom_boxplot() + theme_classic()
+p + theme(axis.text.x = element_text(angle = 45)) + labs(title = 'Uterus Weight Across Labs', x = "Lab")
+```
+
+```{r}
+# interaction between categorical variables vs. lab
+# no need for varying slope
+ggplot(bio, aes(x = group_factor, y = log(uterus))) + geom_boxplot() + facet_wrap(~lab_factor)
+ggplot(bio, aes(x = protocol_factor, y = log(uterus))) + geom_boxplot() + facet_wrap(~lab_factor)
+```
+
+```{r}
+# distribution of weight
+# possible threshold at 100
+ggplot(bio, aes(x = weight, y = log(uterus))) + geom_point()
+
+# set a binary factor for weight
+bio= bio %>% mutate(
+        low_weight = case_when(
+                weight > 100 ~ '0',
+                weight <= 100 ~ '1'
+        ))
+```
+
+```{r}
+# weight vs uterus across lab
+# EE raises the log(uterus) level while ZM suppresses it
+ggplot(bio, aes(x = weight, y = log(uterus), color = EE)) + geom_point() + facet_wrap(~lab_factor)
+ggplot(bio, aes(x = weight, y = log(uterus), color = ZM)) + geom_point() + facet_wrap(~lab_factor)
+```
+
+```{r}
+# Include EE and ZM as predictor, 
+#EE: positive association across all labs
+#ZM: negative/zero association across all labs
+ggplot(bio, aes(x = EE, y = log(uterus))) + geom_point() + geom_smooth(method = 'lm') + facet_wrap(~lab_factor) + geom_boxplot()
+ggplot(bio, aes(x = ZM, y = log(uterus))) + geom_point() + geom_smooth(method = 'lm') + facet_wrap(~lab_factor) + geom_boxplot()
+```
+
+```{r interaction between protocol & others}
+# slope does not change, maybe control for protocol, higher intercept(adult rats)
+# possible varying slopes
+
+p2 = ggplot(bio, aes(x = EE, y = log(uterus))) + geom_point() + geom_smooth(method = 'lm') + facet_wrap(~protocol_factor) + theme_classic()
+p2 + theme(axis.text.x = element_text(angle = 45)) + labs(title = 'Effect of EE Dose on Uterus Weight Across protocols', x = "Protocol")
+p3 = ggplot(bio, aes(x = ZM, y = log(uterus))) + geom_point() + geom_smooth(method = 'lm') + facet_wrap(~protocol_factor) + theme_classic()
+p3 + theme(axis.text.x = element_text(angle = 45)) + labs(title = 'Effect of ZM Dose on Uterus Weight Across protocols', x = "Protocol")
+```
+
+```{r}
+ggplot(bio, aes(x = EE, y = ZM)) + geom_point() + geom_smooth(method = 'lm')
+```
+
+## Model Selection
+
+```{r full model}
+# install.packages('lme4')
+library(lme4)
+fit_null = lmer(log(uterus) ~ EE + ZM + (1 | lab_factor), data = bio)
+
+# after controlling for protocols
+fit_1 = lmer(log(uterus) ~ EE + ZM + (1 | lab_factor) + (ZM + EE | protocol_factor), data = bio)
+
+# adding weight_binary 
+fit_final = lmer(log(uterus) ~ EE + ZM + low_weight + (1 | lab_factor) + (ZM + EE | protocol_factor), data = bio)
+
+
+# fit_full = lmer(log(uterus) ~ low_weight + EE + ZM + (1 | lab_factor) + (ZM | protocol_factor), data = bio)
+# fit_full_2 = lmer(log(uterus) ~ EE + ZM + (1 | lab_factor) + (ZM+ EE | protocol_factor), data = bio)
+# fit_3 = lmer(log(uterus) ~  EE + ZM + (1 | lab_factor) + (1 | protocol_factor), data = bio)
+
+# AIC Score
+AIC(fit_null)
+AIC(fit_1)
+AIC(fit_final)
+
+# ANOVA
+anova(fit_null, fit_1)
+anova(fit_1, fit_final)
+```
+```{r}
+library(sjplot)
+sjplot(fit_final)
+```
+
+```{r final_model}
+fit_final = lmer(log(uterus) ~ EE + ZM + low_weight +  (1 | lab_factor) + (EE + ZM | protocol_factor), data = bio)
+AIC(fit_final)
+summary(fit_final)
+
+# install.packages("caret")
+library(caret)
+dotplot(ranef(fit_final, condVar = TRUE))
+```
+
+## Model Assumption Check 
+
+```{r residual vs fitted plot}
+# CHeck for linearity
+plot(fit_final)
+#plot(resid(fit_final),log(bio$uterus))
+```
+
+```{r leverage score}
+# leverage score 
+
+n <- nrow(model.matrix(fit_final)); p <- ncol(model.matrix(fit_final))
+lev_scores <- hatvalues(fit_final)
+plot(lev_scores,col=ifelse(lev_scores > (2*p/n), 'navy'),type="h",
+ylab="Leverage score",xlab="Index",main="Leverage Scores for all observations")
+table(lev_scores > (2*p/n))
+```
+
+```{r}
+# normality check
+qqnorm(resid(fit_final))
+qqline(resid(fit_final))
+```
+
+
+### PART II
+
+```{r data_preprocessing}
+set.seed(703)
+history <- read.csv("history_stats_20161108.txt",header = TRUE,sep = "\t")
+voter <- read.csv("voter_stats_20161108.txt",header = TRUE, sep = " ")
+```
+
+```{r}
+# drop columns
+history_reduced = history %>% mutate(actual_voters = total_voters) %>% 
+  select(county_desc,vtd_abbrv,age,sex_code, race_code,ethnic_code,voted_party_cd,voting_method, voting_method_desc, actual_voters) %>% 
+  filter(age != "Age < 18 Or Invalid Birth Dates") %>% 
+  filter(sex_code != ' '& sex_code != 'N') %>%
+  filter(voted_party_cd != '')
+
+voter_reduced = voter %>% mutate(registered_voters = total_voters) %>% 
+  select(county_desc,age,sex_code, race_code,ethnic_code,registered_voters) %>% 
+  filter(race_code != '')
+
+history_reduced = na.omit(history_reduced)
+voter_reduced = na.omit(voter_reduced)
+```
+
+
+```{r}
+#aggregate data
+aggregated_voter <- aggregate(voter_reduced$registered_voters,
+                             list(County = voter_reduced$county_desc, Race = voter_reduced$race_code, Sex = voter_reduced$sex_code, Age = voter_reduced$age, Ethnic = voter_reduced$ethnic_code),sum)
+names(aggregated_voter)[6] = "registered_voters"
+
+
+aggregated_history <- aggregate(history_reduced$actual_voters,
+                             list(County = history_reduced$county_desc, Race = history_reduced$race_code, Sex = history_reduced$sex_code, Age = history_reduced$age, Ethnic = history_reduced$ethnic_code, Party = history_reduced$voted_party_cd),sum)
+names(aggregated_history)[7] = "actual_voters"
+
+# merge
+combined = inner_join(aggregated_voter, aggregated_history, by = c("County", "Race", "Sex", "Age", "Ethnic"))
+combined = na.omit(combined)
+
+# drop actual voters > registered voters
+
+# get 20 samples of county names
+set.seed(703)
+distinct_county = distinct(combined, County)
+sample_county = distinct_county[sample(nrow(distinct_county), 20),]
+sample = combined[which(combined$County %in% sample_county),]
+
+# add column turnout rate
+sample$rate = round(sample$actual_voters/sample$registered_voters,4)
+sample = na.omit(sample)
+```
+
+```{r}
+# log transformation
+hist(sample$rate)
+```
+
+```{r}
+# Age, Ethnic, Sex, Party, Race
+ggplot(data = sample, aes(x = Age, y = rate)) + geom_boxplot() + facet_wrap(~County)
+ggplot(data = sample, aes(x = Ethnic, y = rate)) + geom_boxplot() + facet_wrap(~County)  # possible interaction, try varying slope
+ggplot(data = sample, aes(x = Sex, y = rate)) + geom_boxplot() + facet_wrap(~County)
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot() + facet_wrap(~County) # possible interaction
+```
+
+```{r}
+# check if eligible for varying slopes and interaction effects
+table(sample$Race, sample$County)
+table(sample$Ethnic, sample$County)
+```
+
+```{r}
+# effect of individual variables
+ggplot(data = sample, aes(x = Sex, y = rate)) + geom_boxplot()
+ggplot(data = sample, aes(x = Age, y = rate)) + geom_boxplot() 
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot()
+ggplot(data = sample, aes(x = Ethnic, y = rate)) + geom_boxplot()
+ggplot(data = sample, aes(x = Party, y = rate)) + geom_boxplot()
+```
+
+```{r}
+# interaction effect between Party and other variable
+ggplot(data = sample, aes(x = Sex, y = rate)) + geom_boxplot() + facet_wrap(~Party) # possible interaction
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot() + facet_wrap(~Party) #possible interaction
+ggplot(data = sample, aes(x = Ethnic, y = rate)) + geom_boxplot() + facet_wrap(~Party) # possible interaction
+ggplot(data = sample, aes(x = Age, y = rate)) + geom_boxplot() + facet_wrap(~Party)
+```
+
+
+```{r}
+# interaction effect between Ethnic and other variable
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot() + facet_wrap(~Ethnic)  # interaction 
+ggplot(data = sample, aes(x = Age, y = rate)) + geom_boxplot() + facet_wrap(~Ethnic)
+ggplot(data = sample, aes(x = Sex, y = rate)) + geom_boxplot() + facet_wrap(~Ethnic)
+```
+
+```{r}
+# interaction effect between Sex and other variable
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot() + facet_wrap(~Sex)
+ggplot(data = sample, aes(x = Age, y = rate)) + geom_boxplot() + facet_wrap(~Sex)
+```
+
+```{r}
+# interaction effect between Race and Age
+ggplot(data = sample, aes(x = Race, y = rate)) + geom_boxplot() + facet_wrap(~Age)
+```
+
+# Model Selection
+
+```{r}
+model_null = glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Race  + (1 | County), data = sample, family = 
+'binomial')
+model_1 = glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Race + (Ethnic | County), data = sample, family = 
+'binomial')
+model_2 = glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + (Race | County), data = sample, family = 
+'binomial')
+model_3 = glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Party:Race + Party + (Race | County), data = sample, family = 'binomial')
+model_4 = glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Party + (Race | County), data = sample, family = 
+'binomial')
+model_5= glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Ethnic + Party:Race + Party + (Race | County), data = sample, family = 'binomial')
+model_6= glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Race + Party + Party:Race + (1 | County), data = sample, family = 'binomial')
+model_7= glmer(cbind(actual_voters, registered_voters - actual_voters) ~ Age + Sex + Race + Party + Ethnic +Party:Race + (1 | County), data = sample, family = 'binomial')
+
+
+AIC(model_null)
+AIC(model_1)
+AIC(model_2)
+AIC(model_3)
+AIC(model_4)
+AIC(model_5)
+AIC(model_6)
+AIC(model_7)
+
+
+
+anova(model_null, model_1)
+anova(model_3, model_5)
+summary(model_5)
+
+exp(fixef(model_5))
+```
+
+
+## Model Assumption Check 
+
+```{r}
+# CHeck for Binned Residual
+plot(model_final)
+```
+
+```{r}
+# normality check
+qqnorm(resid(model_final))
+qqline(resid(model_final))
+```
+
+
+
+
+
+
+
+
+
+
+
+

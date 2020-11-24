@@ -1,19 +1,14 @@
 # Data-Analysis-Project-On-Job-Training-and-Wage
 
-## PART I
-### Introduction
-The group of hormones known as estrogens are responsible for regulating bones, skin, and organ growth,
-among other essential bodily functions. Estrogens often serve to disrupt processes within the endocrine
-system (hormone pathways), which is completely benign when occurring as a natural bodily process. Over
-the past ten years, however, the increased production of many synthetic and plant products has raised
-concerns over the potentially adverse impacts these chemicals have on the human body. Chemicals that have
-estrogenic effects have been labeled environmental estrogens.
-One method for testing the estrogenic effects of these environmental estrogens is the rat uterotrophic bioassay,
-which observes the uterus growth response to varying levels of estrogen agonists and antagonists. The
-expectation is that uterus weight will increase as the amount of prescribed estrogen agonist increases and
-decreases as the amount of estrogen antagonist increases.
-This analysis examines the data from one such uteroptophic bioassay study to determine if the process was
-successful in identifying both the estrogenic effects of environmental estrogens, and the anti-estrogenic effects
-of antagonist chemicals. This analysis also examines if and how these effects vary across the laboratories
-involved in the study and examines how different dosing protocols may have affected the ability to detect
-the effects of the two chemical
+## Introduction
+
+Disadvantage workers are the groups of individuals with higher chances of living in poverty and being unemployed than the overall population because of personal and societal reasons such as limited skills and education, disabilities and ethnic discriminations (European Institution for Gender Equality). Regardless the general economic conditions, disadvantage workers usually having trouble finding and maintaining employment opportunities that pay enough to insurance their basics(Mitchell, 2018). One of the primary barriers for those workers from receiving substantial earnings is the absence of occupational skills and knowledge. To obtain the incrementally growing skillsets that employers require, many hard-to-employ people choose to take advantages of vocational job training. To investigate the impact of job training on receiving unsubsidized employment and provide actionable insights for policy makers, National Supported Work Demonstration Program was conducted in the 1970s on a group of disadvantaged workers, including young school dropouts and people with criminal records (Maynard & Kaufman, 2017). In the study, eligible participants were randomly assigned to receive short-term job training between March 1975 to July 1977, and their annual income in 1973 and 1977 were recorded for comparison (Lalonde, 1986). This report's primary goal is to interpret results from self-conducted exploratory data analysis and model fitting on the NSW data using R, assessing whether receiving job training has a significant impact on workers' probability of obtaining positive earnings.
+
+## Part I
+Assess whether receiving job training has a significant effect on annual earnings and what is the range of the impact. Other considerations include whether this effect differs by demographic group (i.e., age, education, racial identity).
+
+## Part II
+
+Assess whether receiving job training has a significant result on a worker’s probability of obtaining a non-zero wage. Other considerations include whether this effect differs by demographic group (i.e., age, education, racial identity).
+
+### Analytics Model: Linear Regression & Logistic Regression
